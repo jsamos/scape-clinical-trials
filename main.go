@@ -17,6 +17,24 @@ type ClinicalStudy struct {
 	Collaborators []string   `xml:"sponsors>collaborator>agency"`
 }
 
+func fetchStudy(study *gofeed.Item) (ClinicalStudy, error) {
+			itemGUID := study.GUID
+			url := fmt.Sprintf("https://clinicaltrials.gov/ct2/show/%s?displayxml=true", itemGUID)
+			resp, err := grequests.Get(url, nil)
+			v := ClinicalStudy{}
+			
+			if err != nil {
+				return v, err
+			}
+
+			content := resp.String()
+
+		
+			xml.Unmarshal([]byte(content), &v)
+
+			return v, nil
+}
+
 func main() {
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=dghi&count=10000")
@@ -24,22 +42,16 @@ func main() {
 	//for i := 0; i < len(feed.Items); i++ {
 	for i := 0; i < 10; i++ {
 			item := feed.Items[i]
-			itemGUID := item.GUID
-			url := fmt.Sprintf("https://clinicaltrials.gov/ct2/show/%s?displayxml=true", itemGUID)
-			//fmt.Println(item.Title)
-			//fmt.Println(url)
-			resp, err := grequests.Get(url, nil)
 
+			study, err := fetchStudy(item)
+			
 			if err != nil {
 				log.Fatalln("Unable to make request: ", err)
 			}
-			content := resp.String()
-			v := ClinicalStudy{Title: "none"}
-			xml.Unmarshal([]byte(content), &v)
-			fmt.Printf("Title: %q\n", v.Title)
-			fmt.Printf("Url: %q\n", v.Url)
-			fmt.Printf("Status: %q\n", v.Status)
-			fmt.Printf("LeadSponsor: %q\n", v.LeadSponsor)
-			//fmt.Printf("Collaborators: %q\n", v.Collaborators)
+
+			fmt.Printf("Title: %q\n", study.Title)
+			fmt.Printf("Url: %q\n", study.Url)
+			fmt.Printf("Status: %q\n", study.Status)
+			fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
 	}
 }
