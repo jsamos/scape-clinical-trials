@@ -45,6 +45,8 @@ func main() {
 
 			study, err := fetchStudy(item)
 			
+			fmt.Println("Response Returned", i)
+
 			if err != nil {
 				log.Fatalln("Unable to make request: ", err)
 			}
