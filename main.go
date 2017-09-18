@@ -42,9 +42,7 @@ func main() {
 	//for i := 0; i < len(feed.Items); i++ {
 	for i := 0; i < 10; i++ {
 			item := feed.Items[i]
-
 			study, err := fetchStudy(item)
-			
 			fmt.Println("Response Returned", i)
 
 			if err != nil {
