@@ -17,6 +17,11 @@ type ClinicalStudy struct {
 	Collaborators []string   `xml:"sponsors>collaborator>agency"`
 }
 
+type FeedJob struct {
+	Counter int
+	FeedItem *gofeed.Item
+}
+
 func fetchStudy(study *gofeed.Item) (ClinicalStudy, error) {
 			itemGUID := study.GUID
 			url := fmt.Sprintf("https://clinicaltrials.gov/ct2/show/%s?displayxml=true", itemGUID)
@@ -39,19 +44,39 @@ func main() {
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=dghi&count=10000")
 
+	jobs := make(chan FeedJob, len(feed.Items))
+	done := make(chan bool)
+
+  go func() {
+      for {
+          job, more := <-jobs
+          
+          if more {
+						study, err := fetchStudy(job.FeedItem)
+
+						if err != nil {
+							log.Fatalln("Unable to make request: ", err)
+						}
+
+						fmt.Printf("Title: %q\n", study.Title)
+						fmt.Printf("Url: %q\n", study.Url)
+						fmt.Printf("Status: %q\n", study.Status)
+						fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
+						fmt.Println("Request Complete", job.Counter)
+          } else {
+              fmt.Println("received all jobs")
+              done <- true
+              return
+          }
+      }
+  }()
+
 	//for i := 0; i < len(feed.Items); i++ {
-	for i := 0; i < 10; i++ {
-			item := feed.Items[i]
-			study, err := fetchStudy(item)
-			fmt.Println("Response Returned", i)
-
-			if err != nil {
-				log.Fatalln("Unable to make request: ", err)
-			}
-
-			fmt.Printf("Title: %q\n", study.Title)
-			fmt.Printf("Url: %q\n", study.Url)
-			fmt.Printf("Status: %q\n", study.Status)
-			fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
+	for i := 0; i < 20; i++ {
+			jobs <- FeedJob{i, feed.Items[i]}
+			
 	}
+
+	close(jobs)
+	<-done
 }
