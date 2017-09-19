@@ -12,11 +12,6 @@ import (
 	"clinicaltrials/models"
 )
 
-type FeedJob struct {
-	Counter int
-	FeedItem *gofeed.Item
-}
-
 func fetchStudy(study *gofeed.Item) (models.ClinicalStudy, error) {
 			itemGUID := study.GUID
 			url := fmt.Sprintf("https://clinicaltrials.gov/ct2/show/%s?displayxml=true", itemGUID)
@@ -30,9 +25,9 @@ func fetchStudy(study *gofeed.Item) (models.ClinicalStudy, error) {
 			return model, nil
 }
 
-func worker(jobs <-chan FeedJob, output chan<- models.ClinicalStudy) {
+func worker(jobs <-chan *gofeed.Item, output chan<- models.ClinicalStudy) {
 	for job := range jobs {
-		study, err := fetchStudy(job.FeedItem)
+		study, err := fetchStudy(job)
 
 		if err != nil {
 			log.Fatalln("Unable to make request: ", err)
@@ -49,8 +44,7 @@ func main() {
 	runtime.GOMAXPROCS(4)
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=eghi&count=10000")
-
-	jobs := make(chan FeedJob, len(feed.Items))
+	jobs := make(chan *gofeed.Item, len(feed.Items))
 	results := make(chan models.ClinicalStudy, len(feed.Items))
 
   for w := 1; w <= 5; w++ {
@@ -59,9 +53,8 @@ func main() {
 
   start := time.Now()
 
-	//for i := 0; i < len(feed.Items); i++ {
 	for i := 0; i < len(feed.Items); i++ {
-			jobs <- FeedJob{i, feed.Items[i]}
+			jobs <- feed.Items[i]
 			
 	}
 
