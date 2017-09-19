@@ -6,46 +6,31 @@ import (
 	"log"
 	"github.com/mmcdole/gofeed"
 	"github.com/levigross/grequests"
-	"encoding/xml"
 	"runtime"
 	"strings"
 	"clinicaltrials/trialdate"
+	"clinicaltrials/models"
 )
-
-type ClinicalStudy struct {
-	XMLName xml.Name `xml:"clinical_study"`
-	Title    string   `xml:"official_title"`
-	Status    string   `xml:"overall_status"`
-	Url    string   `xml:"required_header>url"`
-	LeadSponsor string   `xml:"sponsors>lead_sponsor>agency"`
-	Collaborators []string   `xml:"sponsors>collaborator>agency"`
-	DateUpdated string   `xml:"lastchanged_date"`
-}
 
 type FeedJob struct {
 	Counter int
 	FeedItem *gofeed.Item
 }
 
-func fetchStudy(study *gofeed.Item) (ClinicalStudy, error) {
+func fetchStudy(study *gofeed.Item) (models.ClinicalStudy, error) {
 			itemGUID := study.GUID
 			url := fmt.Sprintf("https://clinicaltrials.gov/ct2/show/%s?displayxml=true", itemGUID)
 			resp, err := grequests.Get(url, nil)
 			
-			
 			if err != nil {
-				return v, err
+				return models.ClinicalStudy{}, err
 			}
 
-			content := resp.String()
-
-			v := ClinicalStudy{}
-			xml.Unmarshal([]byte(content), &v)
-
-			return v, nil
+			model := models.BuildClinicalStudyFromXml(resp.String())
+			return model, nil
 }
 
-func worker(jobs <-chan FeedJob, output chan<- ClinicalStudy) {
+func worker(jobs <-chan FeedJob, output chan<- models.ClinicalStudy) {
 	for job := range jobs {
 		study, err := fetchStudy(job.FeedItem)
 
@@ -66,7 +51,7 @@ func main() {
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=eghi&count=10000")
 
 	jobs := make(chan FeedJob, len(feed.Items))
-	results := make(chan ClinicalStudy, len(feed.Items))
+	results := make(chan models.ClinicalStudy, len(feed.Items))
 
   for w := 1; w <= 5; w++ {
       go worker(jobs, results)
