@@ -8,6 +8,8 @@ import (
 	"github.com/levigross/grequests"
 	"encoding/xml"
 	"runtime"
+	"strings"
+	"clinicaltrials/trialdate"
 )
 
 type ClinicalStudy struct {
@@ -17,6 +19,7 @@ type ClinicalStudy struct {
 	Url    string   `xml:"required_header>url"`
 	LeadSponsor string   `xml:"sponsors>lead_sponsor>agency"`
 	Collaborators []string   `xml:"sponsors>collaborator>agency"`
+	DateUpdated string   `xml:"lastchanged_date"`
 }
 
 type FeedJob struct {
@@ -28,7 +31,7 @@ func fetchStudy(study *gofeed.Item) (ClinicalStudy, error) {
 			itemGUID := study.GUID
 			url := fmt.Sprintf("https://clinicaltrials.gov/ct2/show/%s?displayxml=true", itemGUID)
 			resp, err := grequests.Get(url, nil)
-			v := ClinicalStudy{}
+			
 			
 			if err != nil {
 				return v, err
@@ -36,7 +39,7 @@ func fetchStudy(study *gofeed.Item) (ClinicalStudy, error) {
 
 			content := resp.String()
 
-		
+			v := ClinicalStudy{}
 			xml.Unmarshal([]byte(content), &v)
 
 			return v, nil
@@ -55,9 +58,12 @@ func worker(jobs <-chan FeedJob, output chan<- ClinicalStudy) {
 }
 
 func main() {
+	dateLimit := time.Now().AddDate(0, 0, -5)
+	trialDateStructure := "2006-01-02"
+	excludeStudiesWith := []string{"Universi", "School", "College", "Hospital"}
 	runtime.GOMAXPROCS(4)
 	fp := gofeed.NewParser()
-	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=dghi&count=10000")
+	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=eghi&count=10000")
 
 	jobs := make(chan FeedJob, len(feed.Items))
 	results := make(chan ClinicalStudy, len(feed.Items))
@@ -78,10 +84,38 @@ func main() {
 
   for a := 1; a <= len(feed.Items); a++ {
     study := <-results
-		fmt.Printf("Title: %q\n", study.Title)
-		fmt.Printf("Url: %q\n", study.Url)
-		fmt.Printf("Status: %q\n", study.Status)
-		fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
+
+  	isPublicCompany := true
+
+    for word := range excludeStudiesWith {
+  		if strings.Contains(study.LeadSponsor, excludeStudiesWith[word]) {
+  			isPublicCompany = false
+  			break
+  		}
+  	}
+
+  	dateFormat := trialdate.Formatter(study.DateUpdated)
+  	trialFormattedDate, err := dateFormat()
+
+  	if err != nil {
+  		continue
+  	}
+
+  	updatedAt, err := time.Parse(trialDateStructure, trialFormattedDate)
+
+  	if err != nil {
+  		fmt.Println(err)
+  	}
+
+    if isPublicCompany == true && updatedAt.After(dateLimit) {
+			fmt.Printf("Title: %q\n", study.Title)
+			fmt.Printf("Url: %q\n", study.Url)
+			fmt.Printf("Status: %q\n", study.Status)
+			fmt.Printf("DateUpdated: %q\n", study.DateUpdated)
+			fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
+			fmt.Println("")
+			fmt.Println("")
+    }
   }
 
   end := time.Now()
