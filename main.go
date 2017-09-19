@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"time"
+	"log"
 	"github.com/mmcdole/gofeed"
 	"github.com/levigross/grequests"
-	"log"
 	"encoding/xml"
+	"runtime"
 )
 
 type ClinicalStudy struct {
@@ -40,43 +42,50 @@ func fetchStudy(study *gofeed.Item) (ClinicalStudy, error) {
 			return v, nil
 }
 
+func worker(jobs <-chan FeedJob, output chan<- ClinicalStudy) {
+	for job := range jobs {
+		study, err := fetchStudy(job.FeedItem)
+
+		if err != nil {
+			log.Fatalln("Unable to make request: ", err)
+		} else {
+			output <- study
+		}
+	}
+}
+
 func main() {
+	runtime.GOMAXPROCS(4)
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=dghi&count=10000")
 
 	jobs := make(chan FeedJob, len(feed.Items))
-	done := make(chan bool)
+	results := make(chan ClinicalStudy, len(feed.Items))
 
-  go func() {
-      for {
-          job, more := <-jobs
-          
-          if more {
-						study, err := fetchStudy(job.FeedItem)
+  for w := 1; w <= 5; w++ {
+      go worker(jobs, results)
+  }
 
-						if err != nil {
-							log.Fatalln("Unable to make request: ", err)
-						}
-
-						fmt.Printf("Title: %q\n", study.Title)
-						fmt.Printf("Url: %q\n", study.Url)
-						fmt.Printf("Status: %q\n", study.Status)
-						fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
-						fmt.Println("Request Complete", job.Counter)
-          } else {
-              fmt.Println("received all jobs")
-              done <- true
-              return
-          }
-      }
-  }()
+  start := time.Now()
 
 	//for i := 0; i < len(feed.Items); i++ {
-	for i := 0; i < 20; i++ {
+	for i := 0; i < len(feed.Items); i++ {
 			jobs <- FeedJob{i, feed.Items[i]}
 			
 	}
 
 	close(jobs)
-	<-done
+
+  for a := 1; a <= len(feed.Items); a++ {
+    study := <-results
+		fmt.Printf("Title: %q\n", study.Title)
+		fmt.Printf("Url: %q\n", study.Url)
+		fmt.Printf("Status: %q\n", study.Status)
+		fmt.Printf("LeadSponsor: %q\n", study.LeadSponsor)
+  }
+
+  end := time.Now()
+  elapsed := end.Sub(start)
+
+  fmt.Println("Time Elapsed:", elapsed)
 }
