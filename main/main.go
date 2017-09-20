@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 	"log"
+	"flag"
 	"github.com/mmcdole/gofeed"
 	"github.com/levigross/grequests"
 	"runtime"
@@ -38,16 +39,24 @@ func worker(jobs <-chan *gofeed.Item, output chan<- models.ClinicalStudy) {
 }
 
 func main() {
-	dateLimit := time.Now().AddDate(0, 0, -5)
+	var fromDaysAgo int
+	var processCount int
+	var workersCount int
+	flag.IntVar(&fromDaysAgo, "days", 5, "how many days back to allow")
+	flag.IntVar(&processCount, "processes", 4, "how processes to use")
+	flag.IntVar(&workersCount, "workers", 5, "how workers to use")
+	flag.Parse()
+	fmt.Println("days", workersCount)
+	dateLimit := time.Now().AddDate(0, 0, -fromDaysAgo)
 	trialDateStructure := "2006-01-02"
 	excludeStudiesWith := []string{"Universi", "School", "College", "Hospital"}
-	runtime.GOMAXPROCS(4)
+	runtime.GOMAXPROCS(processCount)
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=eghi&count=10000")
 	jobs := make(chan *gofeed.Item, len(feed.Items))
 	results := make(chan models.ClinicalStudy, len(feed.Items))
 
-  for w := 1; w <= 5; w++ {
+  for w := 1; w <= workersCount; w++ {
       go worker(jobs, results)
   }
 
