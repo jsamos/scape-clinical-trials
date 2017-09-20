@@ -46,7 +46,10 @@ func main() {
 	flag.IntVar(&processCount, "processes", 4, "how processes to use")
 	flag.IntVar(&workersCount, "workers", 5, "how workers to use")
 	flag.Parse()
-	fmt.Println("days", workersCount)
+	fmt.Println("from days ago:", fromDaysAgo)
+	fmt.Println("workers:", workersCount)
+	fmt.Println("processes:", processCount)
+
 	dateLimit := time.Now().AddDate(0, 0, -fromDaysAgo)
 	trialDateStructure := "2006-01-02"
 	excludeStudiesWith := []string{"Universi", "School", "College", "Hospital"}
