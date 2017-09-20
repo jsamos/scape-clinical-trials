@@ -38,28 +38,30 @@ func worker(jobs <-chan *gofeed.Item, output chan<- models.ClinicalStudy) {
 	}
 }
 
-func main() {
-	var fromDaysAgo int
-	var processCount int
-	var workersCount int
-	flag.IntVar(&fromDaysAgo, "days", 5, "how many days back to allow")
-	flag.IntVar(&processCount, "processes", 4, "how processes to use")
-	flag.IntVar(&workersCount, "workers", 5, "how workers to use")
+func BuildCmdOptions() models.CMD {
+	cmd := models.CMD{}
+	flag.IntVar(&cmd.FromDaysAgo, "days", 5, "how many days back to allow")
+	flag.IntVar(&cmd.ProcessCount, "processes", 4, "how processes to use")
+	flag.IntVar(&cmd.WorkersCount, "workers", 5, "how workers to use")
 	flag.Parse()
-	fmt.Println("from days ago:", fromDaysAgo)
-	fmt.Println("workers:", workersCount)
-	fmt.Println("processes:", processCount)
+	fmt.Println("from days ago:", cmd.FromDaysAgo)
+	fmt.Println("workers:", cmd.WorkersCount)
+	fmt.Println("processes:", cmd.ProcessCount)
+	return cmd
+}
 
-	dateLimit := time.Now().AddDate(0, 0, -fromDaysAgo)
+func main() {
+	cmd := BuildCmdOptions()
+	dateLimit := time.Now().AddDate(0, 0, -cmd.FromDaysAgo)
 	trialDateStructure := "2006-01-02"
 	excludeStudiesWith := []string{"Universi", "School", "College", "Hospital"}
-	runtime.GOMAXPROCS(processCount)
+	runtime.GOMAXPROCS(cmd.ProcessCount)
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://clinicaltrials.gov/ct2/results/rss.xml?rcv_d=&lup_d=14&sel_rss=mod14&recrs=eghi&count=10000")
 	jobs := make(chan *gofeed.Item, len(feed.Items))
 	results := make(chan models.ClinicalStudy, len(feed.Items))
 
-  for w := 1; w <= workersCount; w++ {
+  for w := 1; w <= cmd.WorkersCount; w++ {
       go worker(jobs, results)
   }
 
